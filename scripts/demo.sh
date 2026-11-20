@@ -39,6 +39,28 @@ switch_profile() {
     -d "$(jq -n --arg p "$profile" '{profile:$p}')" | jq -r '.active'
 }
 
+# head_probe "<描述>" "<url>"：单跳 HEAD，展示复用与对端地址
+head_probe() {
+  local desc="$1" url="$2"
+  local body
+  body="$(jq -n --arg u "$url" '{url:$u}')"
+  echo
+  echo "================================================================"
+  echo "▶ ${desc}"
+  echo "  POST ${BASE}/api/v1/probe/head  ${body}"
+  curl -sS -X POST "${BASE}/api/v1/probe/head" \
+    -H 'Content-Type: application/json' \
+    -d "$body" \
+    | jq '{outcome, summary,
+           status: .hop.status_code,
+           peer: .hop.connected_peer,
+           resolved: .hop.resolved_addresses,
+           reused: .hop.connection_reused,
+           kept_alive: .hop.connection_kept_alive,
+           location: .hop.location,
+           idle_pool: .pool.idle_connections}'
+}
+
 echo "### 0. 当前策略"
 curl -sS "${BASE}/api/v1/policy" | jq .
 
@@ -76,7 +98,22 @@ probe_url "跳转链超过 3 次上限：第 5 跳未连接即拦截" \
   "http://loop1.demo.test${HPORT}/loop/1"
 switch_profile allowed
 
-# 6) 仅 IPv4 / 入口校验
+# 6) 单跳 HEAD 探测 + 空闲连接复用
+switch_profile allowed
+head_probe "HEAD 首次探测（新建连接，响应后归还连接池）" \
+  "http://www.allowed.demo.test${HPORT}/"
+head_probe "同名同源再次探测：复用空闲连接（不重复 TCP/TLS 握手）" \
+  "http://www.allowed.demo.test${HPORT}/"
+switch_profile reuse-b
+head_probe "DNS 切到另一台获准目标 172.31.10.11：换址后重新建连" \
+  "http://www.allowed.demo.test${HPORT}/"
+head_probe "新地址再次探测：复用新连接" \
+  "http://www.allowed.demo.test${HPORT}/"
+head_probe "跳转目标：只返回 Location，不跟随" \
+  "http://redirect-ok.demo.test${HPORT}/redirect-allowed"
+switch_profile allowed
+
+# 7) 仅 IPv4 / 入口校验
 probe_url "IPv6 字面量：拒绝" "http://[2001:db8::1]/"
 probe_url "非 HTTP(S) scheme：拒绝" "ftp://allowed.demo.test${HPORT}/"
 probe_url "URL 携带 userinfo：拒绝" "http://u:p@allowed.demo.test${HPORT}/"

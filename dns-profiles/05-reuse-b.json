@@ -1,0 +1,18 @@
+{
+  "profile": "reuse-b",
+  "description": "换址演示 B：www.allowed.demo.test 从 172.31.10.10 切换到另一台获准目标 172.31.10.11，用于演示同址复用空闲连接、换址后重新建连；其余域名与 allowed 相同",
+  "zones": {
+    "allowed.demo.test":        ["172.31.10.10"],
+    "www.allowed.demo.test":    ["172.31.10.11"],
+    "https.allowed.demo.test":  ["172.31.10.10"],
+    "multi-a.demo.test":        ["172.31.10.10", "172.31.10.11"],
+    "redirect-ok.demo.test":    ["172.31.10.10"],
+    "redirect-final.demo.test": ["172.31.10.10"],
+    "loop1.demo.test":          ["172.31.10.10"],
+    "loop2.demo.test":          ["172.31.10.10"],
+    "loop3.demo.test":          ["172.31.10.10"],
+    "loop4.demo.test":          ["172.31.10.10"],
+    "forbidden.demo.test":      ["172.31.20.10"],
+    "swapped.demo.test":        ["172.31.10.10"]
+  }
+}

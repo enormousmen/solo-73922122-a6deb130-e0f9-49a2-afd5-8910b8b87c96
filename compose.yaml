@@ -47,6 +47,9 @@ services:
     volumes:
       - ./dns-profiles:/app/dns-profiles:ro
       - dns-state:/tmp/dns-state
+    # 控制面仅绑定回环，供 demo.sh / curl 热切换解析 profile
+    ports:
+      - "127.0.0.1:8053:8053"
     networks:
       net_dns:
         ipv4_address: 172.31.0.53
@@ -60,11 +63,29 @@ services:
     command: ["python", "-m", "app.targets.server"]
     environment:
       CERT_DIR: /app/certs
+      TARGET_NAME: "allowed-a"
+    volumes:
+      - certs:/app/certs:ro
+    # 访问日志查询端口，供 demo.sh 验证“禁止目标从未收到探测请求”
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      net_allowed:
+        ipv4_address: 172.31.10.10
+
+  # 第二台允许访问的目标：用于演示“同名域名在两个获准地址之间切换时，
+  # 同址复用空闲连接、换址后重新建连”。
+  target-allowed-2:
+    build: .
+    command: ["python", "-m", "app.targets.server"]
+    environment:
+      CERT_DIR: /app/certs
+      TARGET_NAME: "allowed-b"
     volumes:
       - certs:/app/certs:ro
     networks:
       net_allowed:
-        ipv4_address: 172.31.10.10
+        ipv4_address: 172.31.10.11
 
   # 禁止访问的目标：同镜像，位于禁止网段
   target-forbidden:
@@ -72,6 +93,7 @@ services:
     command: ["python", "-m", "app.targets.server"]
     environment:
       CERT_DIR: /app/certs
+      TARGET_NAME: "forbidden"
     volumes:
       - certs:/app/certs:ro
     networks:
@@ -98,6 +120,8 @@ services:
       MAX_REDIRECTS: "3"
       MAX_CONCURRENCY: "64"
       PROBE_OVERALL_TIMEOUT: "30.0"
+      MAX_IDLE_CONNECTIONS: "8"
+      IDLE_TIMEOUT: "15"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

@@ -22,6 +22,8 @@ class Settings:
     max_redirects: int
     max_concurrency: int
     overall_timeout: float
+    max_idle_connections: int = 8
+    idle_timeout: float = 15.0
 
     @property
     def allowed_cidrs(self) -> list[str]:
@@ -44,6 +46,15 @@ def load_settings() -> Settings:
     if ca_bundle is not None and not os.path.isfile(ca_bundle):
         raise SystemExit(f"启动失败: CA_BUNDLE 文件不存在: {ca_bundle}")
 
+    # 空闲连接池：硬上限 8 条 / 每条最多空闲 15 秒；这里只允许调小，
+    # 不允许超过需求规定的上限。
+    max_idle = int(os.getenv("MAX_IDLE_CONNECTIONS", "8"))
+    if max_idle < 0 or max_idle > 8:
+        raise SystemExit("启动失败: MAX_IDLE_CONNECTIONS 仅允许 0..8（需求上限为 8）")
+    idle_timeout = float(os.getenv("IDLE_TIMEOUT", "15.0"))
+    if idle_timeout <= 0 or idle_timeout > 15.0:
+        raise SystemExit("启动失败: IDLE_TIMEOUT 仅允许 (0, 15] 秒（需求上限为 15 秒）")
+
     return Settings(
         policy=policy,
         dns_server=os.getenv("DNS_SERVER", "127.0.0.1").strip(),
@@ -57,4 +68,6 @@ def load_settings() -> Settings:
         max_redirects=max_redirects,
         max_concurrency=int(os.getenv("MAX_CONCURRENCY", "64")),
         overall_timeout=float(os.getenv("PROBE_OVERALL_TIMEOUT", "30.0")),
+        max_idle_connections=max_idle,
+        idle_timeout=idle_timeout,
     )

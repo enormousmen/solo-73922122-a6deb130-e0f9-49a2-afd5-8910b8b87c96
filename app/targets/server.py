@@ -19,11 +19,28 @@ from collections import deque
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.routing import APIRoute
 
 CERT_DIR = os.getenv("CERT_DIR", "/app/certs")
+TARGET_NAME = os.getenv("TARGET_NAME", "target")
 RECENT_REQUESTS: deque[dict] = deque(maxlen=200)
 
+
+class GetHeadRoute(APIRoute):
+    """让所有 GET 路由同时接受 HEAD，便于 HEAD 探测返回真实状态码。"""
+
+    def __init__(self, path: str, endpoint, **kwargs):  # noqa: ANN001
+        methods = kwargs.get("methods")
+        if methods:
+            methods = set(methods)
+            if "GET" in methods:
+                methods.add("HEAD")
+            kwargs["methods"] = methods
+        super().__init__(path, endpoint, **kwargs)
+
+
 app = FastAPI(title="demo-targets", docs_url=None, redoc_url=None, openapi_url=None)
+app.router.route_class = GetHeadRoute
 
 
 @app.middleware("http")
@@ -46,6 +63,7 @@ async def root(request: Request):
     return JSONResponse(
         {
             "service": "demo-targets",
+            "target": TARGET_NAME,
             "host": request.headers.get("host"),
             "peer": request.client.host if request.client else None,
             "tls": request.url.scheme == "https",
@@ -124,6 +142,9 @@ def _server_kwargs() -> dict:
         "app": app,
         "log_level": "warning",
         "access_log": False,
+        # 让目标端的 keep-alive 长于探测端的空闲上限（15 秒），
+        # 演示期间连接不会先被目标端关掉。
+        "timeout_keep_alive": 30,
     }
 
 

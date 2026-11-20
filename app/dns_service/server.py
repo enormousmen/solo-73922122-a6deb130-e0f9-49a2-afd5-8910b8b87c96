@@ -21,6 +21,7 @@ from ..probe import dns_wire
 PROFILES_DIR = Path(os.getenv("DNS_PROFILES_DIR", "/app/dns-profiles"))
 STATE_FILE = Path(os.getenv("DNS_STATE_FILE", "/tmp/dns-state/profile"))
 CONTROL_PORT = int(os.getenv("DNS_CONTROL_PORT", "8053"))
+LISTEN_PORT = int(os.getenv("DNS_LISTEN_PORT", "53"))
 
 
 class ProfileStore:
@@ -134,11 +135,11 @@ async def serve() -> None:
     loop = asyncio.get_running_loop()
     transport, _protocol = await loop.create_datagram_endpoint(
         lambda: DnsUdpServer(store),
-        local_addr=("0.0.0.0", 53),
+        local_addr=("0.0.0.0", LISTEN_PORT),
     )
     await _control_app(store)
     print(
-        f"[dns-service] UDP/53 已启动，初始 profile={store.active!r}，"
+        f"[dns-service] UDP/{LISTEN_PORT} 已启动，初始 profile={store.active!r}，"
         f"控制面 HTTP/{CONTROL_PORT}",
         flush=True,
     )
